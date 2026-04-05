@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>神奈川沖浪裏 — テクテクの海 | The Great Wave of Tekuteku</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@200;300;500&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0e14;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Noto Serif JP', serif;
+    color: #c8d0dc;
+    overflow: hidden;
+  }
+  h1 {
+    font-weight: 200;
+    font-size: clamp(16px, 2.8vw, 26px);
+    letter-spacing: 0.25em;
+    color: #7a8faa;
+    margin-bottom: 5px;
+    opacity: 0;
+    animation: fi 3s ease 0.5s forwards;
+  }
+  .sub {
+    font-size: clamp(9px, 1.2vw, 12px);
+    color: #2e3d52;
+    letter-spacing: 0.5em;
+    margin-bottom: 18px;
+    opacity: 0;
+    animation: fi 3s ease 1.2s forwards;
+  }
+  canvas { display: block; border-radius: 3px; opacity: 0; animation: fi 2s ease 0.1s forwards; }
+  .ctrl {
+    display: flex; gap: 16px; margin-top: 14px; flex-wrap: wrap;
+    justify-content: center; align-items: center;
+    opacity: 0; animation: fi 2s ease 2s forwards;
+  }
+  .ctrl label {
+    font-size: 10px; font-weight: 300; color: #2e3d52;
+    display: flex; align-items: center; gap: 6px; letter-spacing: 0.12em;
+  }
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 70px; height: 1px; background: #1a2030; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #4a6a8a; cursor: pointer;
+  }
+  button {
+    background: transparent; border: 1px solid #1a2030; color: #3a5570;
+    padding: 4px 12px; font-family: 'Noto Serif JP', serif; font-weight: 300;
+    font-size: 10px; letter-spacing: 0.2em; cursor: pointer; border-radius: 2px;
+  }
+  button:hover { border-color: #4a6a8a; color: #8ba4c4; }
+  #emo {
+    position: fixed; bottom: 18px; left: 22px;
+    font-size: 11px; font-weight: 200; color: #2a3648;
+    letter-spacing: 0.3em; opacity: 0; animation: fi 3s ease 4s forwards;
+    transition: color 3s;
+  }
+  .poem {
+    position: fixed; bottom: 18px; right: 22px;
+    font-size: 11px; font-weight: 200; color: #141c28;
+    writing-mode: vertical-rl; letter-spacing: 0.5em; line-height: 2;
+    opacity: 0; animation: fi 4s ease 5s forwards;
+  }
+  @keyframes fi { to { opacity: 1; } }
+</style>
+</head>
+<body>
+<h1>神奈川沖浪裏 — テクテクの海</h1>
+<div class="sub">THE GREAT WAVE OF TEKUTEKU</div>
+<canvas id="c"></canvas>
+<div class="ctrl">
+  <button onclick="rebirth()">再 生</button>
+  <label>息 <input type="range" min="0.2" max="3" step="0.1" value="1" id="sp"></label>
+  <label>記憶 <input type="range" min="0.82" max="0.99" step="0.01" value="0.94" id="fd"></label>
+  <label>荒波 <input type="range" min="0" max="1" step="0.01" value="0.5" id="fury"></label>
+  <label>テクテク <input type="range" min="0.05" max="1" step="0.05" value="0.25" id="teku"></label>
+</div>
+<div id="emo"></div>
+<div class="poem">テクテクは歩く<br>波の中を　転がりながら<br>どこへ行くかは知らない<br>でも歩く</div>
+
+<script>
+const cv = document.getElementById('c');
+const cx = cv.getContext('2d');
+const el = document.getElementById('emo');
+const dpr = window.devicePixelRatio || 1;
+let W, H, parts, ghosts, t;
+
+// --- Load tekuteku images ---
+const tekuSizes = [14, 20, 28, 36];
+const tekuB64 = {
+14: "iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAACaElEQVR4nHWSzUtUYRjFz/O+984dJ3LGyanUsCjUqJXRomwiB/oihSJQ6B/IcBm0iBZDRP9AFNjKRVA49oGONonBlBYYthGiJMJFakM6M+rkzNy5973v08JyYfSDs3o4cM7DIcRZ4Da4JZVtXtK+J5LEPIN9RDwHCMPH7oxSrCuGedA0zNIuqrz4fCY0LQAAIHaVMpkRApA3WK2UZKDXYE+saeOBkuK6pZ0KwE0Ltk6fmChEaMPIBBBHJ1drvhTNU+w6JCQdsqXZY1bsZ4aQGoas9qRUlmNPXg3MJDZ8iYTEFiIj+d7QUO4pbT38gZBgiW7yohOFyKxtXmJPHfO0qnIVt5IQfr8h3mthzFbBHf9xLviBASDOggjA7pHclbLPumWBMsKtDEnSJXj4JMjwXOg9SlpHlERUAKUmUb42dbp2kepH853rGv11hhcl5tawxdMZR5xv9DsDb2MN2b/RBIDI2PoNx3F69hvqJIWSuTlLyJs/O0ID/xRhFhgcJES6NqrGSIWS+T5BCAsQQo0+eo2HH00wSzAT4iwAJhBpdHd7iJHCMhgJlkEf9Xma24XWsBedynH0HHUBMACgHQJpSKTZ2BQGgS7onaI4DwKjYSR7OTi8slCfXu+Mp9n4z/c3OZDKHK4ezq8SADS+yrUVhPXILBfv7A3wxDdf5K78tZplIpuIyjKwfS1kr4zWWVZ2xqakUO4bwsuvFi40V4LPl+6ZAX+NclUt+ayMocqjzLSDmaQOBNq4WApvM8W7oqazhY5gDIizQIJlS2q5JTxWfhxO5u5vnVG8P+2vSeanguP2932p5Ytgpt8mgR13vQ+t8AAAAABJRU5ErkJggg==",
+20: "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAEWElEQVR4nH1TW2xUVRRd+5x770zntvMqfQHWQKAxYomk5aGJYRDEIoGqCTV+GRONJPrhhw80kYGoGPgQPkx8RT4kYhiUQGtbWgvTxhhDLKQJhKipBEjDlE5n2s575t57th/TVijKSnbOa591zlnrbMIcwix4H2hFX2JPHOZutoqLQEJqUlyo48ynaTIaWej2q5W3Tx5PVzWkydPsKMdnuozJzRWpwaOP1d9mMNEcGfaTeunC7fqT+dqYmc/1NiJ3qCRERZL13ZPSs9PIp68IEm42hEklK+cw0gLIEkmvrHD5Anb2ndG26ogAAOwnhTCL7etq4zW55IdFIVeNOvp3Nwp0JFcqPaI0iSUu+/OA5vyQC1Y2VOl0ZamhDtcb/FGdbh0tGa7GlE3PCYAJC0AAXvzlRuD3nL8pU7R8UlNFYrF93Fv9tnt66mYFuCuvaKWUcrlipUPoGVMX/SF96sD3ocWJhXzAMOsLp+p7kns93ensSCxmAoAAoM2GXJCrzfeYBQiMVrJwR6IAYNn8qFClsfUNDVkCoGYDABDlMkcIDohmB5GIBJGjA3iwP7VxSuF5KF5jK1WnHHZnFS9llykqu6euKpJjuhC/BqXT//dTvt+sTWQjzAKhOckiLNFBzqa+Wy0j8H9tKX7YcKxzxDyqCWfEIDFZtB3pFrKyIGiRctRKJfXHbYgmIWiiVi/uvbY5eMwuv7LsSXPv+BbzfJEDfbkzT5xPbl8+mD/mArCiN7GrqTf++kLnNAA7++OLF5/NHqgaKHD9ufTpzuFhD8IsRPtQ4oFr5O3yWMXj6ac97ZDGJctW42+MxMyio4IOyHciwrJlmHVEWUOUNTvMonNrza1Ym/n+ep5enVZi6ysTy49p+0mhtnvyhKc7k2Ae1sEs7rX9f8BMuMIGADT/NL7FM8jcPJDYBm9vyqnujB+Zd4yZ5p2LsESEF/6MuxGOahoAb2fyqq9zckiw7haGJmLzG4kYm8gGAHSQgw5y7ksYCsFipgrJUSX1DQLZ1M28jTbZQQ7+AiESuf+N/gNExBK4zKbX0JboePOmGTy1bGB69/Ut9IV9p0b7QFgFQg3uKVGEwCByUAVCmIXiqWoqFcuV0Ngz9VbloMOLBvI/tv48vTY8a45Eef1etrthAPB2z1z2dyYuESIRSR0dztr+8Q1/svczVSqt/mbZWOUnsYaW65r/IGdmSkRIKVBaJy4IEjPQjZSXin886fefSeOWL5oOHEyV8PJDsrCxfHgPu/AMFetOxd7LSNcHaA969K7k8aLmfsFnFw4VGNUAKhlsAvAQkd8KBFpbsxNrxhxtXcwf/HJ1Jh66sLV2qPw9tsFGJCJ1TYxDM1xmz3Q0o5uhpdb0a6M7ar7iOfFnWxcA0TVjjRruZ/MkarR4Mn2pvXaIwyz+lYeZJBGv6EvumCBPW9DJDl3fVh1xhlnHxYtAU0uZNw4R3gX727OJdydRsQ8EWY/Cno9TwcMdAP4BLzf8lIqORvoAAAAASUVORK5CYII=",
+28: "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",
+36: "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"
+};
+
+const tekuImages = {};
+let tekuLoaded = 0;
+
+for (const size of tekuSizes) {
+  const img = new Image();
+  img.onload = () => {
+    tekuImages[size] = img;
+    tekuLoaded++;
+    if (tekuLoaded === tekuSizes.length) startArt();
+  };
+  img.src = 'data:image/png;base64,' + tekuB64[size];
+}
+
+// --- Wave geometry ---
+function bezier(pts, t) {
+  let p = pts.map(q => ({x:q[0], y:q[1]}));
+  while (p.length > 1) {
+    const n = [];
+    for (let i = 0; i < p.length-1; i++)
+      n.push({x: p[i].x+(p[i+1].x-p[i].x)*t, y: p[i].y+(p[i+1].y-p[i].y)*t});
+    p = n;
+  }
+  return p[0];
+}
+function bezierTan(pts, t) {
+  const a = bezier(pts, Math.max(0,t-.003));
+  const b = bezier(pts, Math.min(1,t+.003));
+  const dx=b.x-a.x, dy=b.y-a.y, l=Math.sqrt(dx*dx+dy*dy)||1;
+  return {x:dx/l, y:dy/l};
+}
+
+const wM=[[-.05,.85],[.10,.80],[.18,.55],[.25,.22],[.38,.08],[.52,.10],[.58,.22],[.55,.45]];
+const wCr=[[.38,.08],[.45,.03],[.55,.05],[.62,.15],[.60,.30],[.52,.42]];
+const sF=[[[.48,.04],[.54,-.02],[.60,.02]],[[.52,.06],[.60,.00],[.65,.08]],[[.55,.09],[.64,.04],[.68,.14]],[[.44,.05],[.50,-.03],[.57,.01]],[[.42,.07],[.47,-.01],[.54,.03]]];
+const wS=[[.62,.90],[.70,.70],[.78,.45],[.85,.30],[.92,.25],[.98,.35]];
+const wT=[[.88,.88],[.92,.72],[.96,.55],[1.02,.45]];
+const wTr=[[.48,.70],[.55,.75],[.62,.80],[.65,.90]];
+const fuji={x:.72,y:.58};
+const curves=[[wM,5,'wave'],[wCr,4,'crest'],[wS,3,'wave'],[wT,1.5,'wave'],[wTr,1.5,'trough']];
+
+function spawnPt() {
+  const tw = curves.reduce((s,c)=>s+c[1],0);
+  let r = Math.random()*tw;
+  for (const [pts,w,typ] of curves) {
+    r -= w; if (r<=0) {
+      const t=Math.random(), p=bezier(pts,t), tg=bezierTan(pts,t);
+      const sp=(Math.random()-.5)*.08;
+      return {x:p.x+tg.y*sp, y:p.y-tg.x*sp, typ, tg};
+    }
+  }
+  const t=Math.random(), p=bezier(wM,t);
+  return {x:p.x,y:p.y,typ:'wave',tg:{x:1,y:0}};
+}
+function spawnSpray() {
+  const f=sF[Math.floor(Math.random()*sF.length)];
+  const t=Math.random(), p=bezier(f,t);
+  return {x:p.x+(Math.random()-.5)*.02, y:p.y+(Math.random()-.5)*.02, typ:'spray', tg:bezierTan(f,t)};
+}
+
+// --- Tide Breath (波の呼吸) ---
+// Non-uniform cycle: gather → surge → crash → retreat
+// Phase: 0→0.3 gather(溜め), 0.3→0.5 surge(押し寄せ), 0.5→0.6 crash(砕け), 0.6→1.0 retreat(引き波)
+let tidePhase = 0;
+let tideBreath = 0;    // -1(引き) ~ +1(押し寄せ) の呼吸値
+let tideSurge = 0;     // smooth surge intensity for particles
+let tideCrash = 0;     // crash moment burst
+
+function updateTideBreath(dt, sp) {
+  const period = 6.0 / sp; // 息スライダーで周期を変える
+  tidePhase += dt / period;
+  if (tidePhase > 1) tidePhase -= 1;
+
+  const p = tidePhase;
+  if (p < 0.30) {
+    // 溜め — ゆっくり引きながらエネルギーを蓄える
+    const local = p / 0.30;
+    // easeInQuad: 最初はほぼ静止、徐々に引く力が増す
+    tideBreath = -0.3 * local * local;
+    tideSurge = 0.3 + 0.2 * local; // base flow stays gentle
+    tideCrash = 0;
+  } else if (p < 0.50) {
+    // 押し寄せ — 一気に加速（ザバーン！）
+    const local = (p - 0.30) / 0.20;
+    // easeOutCubic: 急激に立ち上がる
+    const ease = 1 - Math.pow(1 - local, 3);
+    tideBreath = -0.3 + 1.3 * ease;
+    tideSurge = 0.5 + 1.5 * ease;
+    tideCrash = ease > 0.7 ? (ease - 0.7) / 0.3 : 0;
+  } else if (p < 0.60) {
+    // 砕け — ピーク後の爆発的な散乱
+    const local = (p - 0.50) / 0.10;
+    tideBreath = 1.0 - 0.5 * local;
+    tideSurge = 2.0 - 1.0 * local;
+    tideCrash = 1.0 - local;
+  } else {
+    // 引き波 — ゆっくり引いていく（息を吐くように）
+    const local = (p - 0.60) / 0.40;
+    // easeInOutSine: 自然な減衰
+    const ease = 0.5 - 0.5 * Math.cos(local * Math.PI);
+    tideBreath = 0.5 * (1 - ease) - 0.3 * ease;
+    tideSurge = 1.0 - 0.7 * ease;
+    tideCrash = 0;
+  }
+}
+
+// --- Flow ---
+function flow(nx, ny, time, fury) {
+  const wcx=.45, wcy=.30, dx=nx-wcx, dy=ny-wcy;
+  const d=Math.sqrt(dx*dx+dy*dy), circ=Math.exp(-d*3)*2.5;
+  let fx=-dy*circ, fy=dx*circ;
+  if(nx<.4&&ny>.2){const s=(.4-nx)*(ny-.2)*6;fy-=s;fx+=s*.3;}
+  if(nx>.35&&nx<.65&&ny<.2){fx+=1.5;fy+=(.2-ny)*3;}
+  if(nx>.42&&nx<.7&&ny<.15){const s=(.15-ny)*fury*8;fx+=Math.cos(time*2+nx*10)*s;fy-=s*.5;}
+  if(ny>.6){fx+=.5;fy+=.1;}
+  const d2x=nx-.85,d2y=ny-.45,d2=Math.sqrt(d2x*d2x+d2y*d2y);
+  fx+=-d2y*Math.exp(-d2*4)*1.2; fy+=d2x*Math.exp(-d2*4)*1.2;
+  const dfx=nx-fuji.x,dfy=ny-fuji.y,df=Math.sqrt(dfx*dfx+dfy*dfy);
+  if(df<.12){fx-=dfx*.5;fy-=dfy*.5;fx*=.3;fy*=.3;}
+  const tb=fury*.8;
+  fx+=Math.sin(nx*15+time*1.5)*tb;fy+=Math.cos(ny*12-time*1.2)*tb;
+  fy+=(.5-ny)*.08;
+
+  // === 波の呼吸をフロー場に乗せる ===
+  // 押し寄せ時: 波頭方向（左上→右下のうねり）に加速
+  const surgeDir = tideBreath;
+  fx *= (0.6 + 0.4 * tideSurge); // base flow modulation
+  fy *= (0.6 + 0.4 * tideSurge);
+
+  // 波頭付近で押し寄せの力を強調
+  if (nx > .3 && nx < .7 && ny < .35) {
+    fx += surgeDir * 1.2;
+    fy -= Math.abs(surgeDir) * 0.3;
+  }
+
+  // 砕ける瞬間: 上方向への散乱力（飛沫感）
+  if (tideCrash > 0 && ny < .25) {
+    fx += (Math.random() - 0.4) * tideCrash * 2.0;
+    fy -= tideCrash * 1.5 * Math.random();
+  }
+
+  // 引き波: 下方向への引き戻し
+  if (surgeDir < 0 && ny > .4) {
+    fy += (-surgeDir) * 0.4;
+    fx -= (-surgeDir) * 0.2;
+  }
+
+  return [fx,fy];
+}
+
+// --- Emotion ---
+let emotion=0, emotionTarget=0;
+const emoNames=[[-1,-.5,'嵐の底'],[-.5,-.2,'暗 潮'],[-.2,-.05,'引き波'],[-.05,.05,'富士の静'],[.05,.2,'潮 騒'],[.2,.5,'白 波'],[.5,1,'怒 濤']];
+
+// --- Ghost (fading tekuteku) ---
+class Ghost {
+  constructor(x,y,sz,angle,typ) {
+    this.x=x;this.y=y;this.sz=sz;this.angle=angle;
+    this.life=0;this.ml=40+Math.random()*50;this.typ=typ;
+    this.vx=typ==='spray'?(Math.random()-.5)*.02:0;
+    this.vy=typ==='spray'?-.01:-.002;
+    this.spin=(Math.random()-.5)*.05;
+  }
+  update(){this.life++;this.x+=this.vx;this.y+=this.vy;this.vy*=.98;this.angle+=this.spin;return this.life<this.ml;}
+  draw(){
+    const age=this.life/this.ml, a=Math.max(0,(1-age)*.3);
+    const px=this.x*W, py=this.y*H;
+    if(px<-50||px>W+50||py<-50||py>H+50) return;
+    const sizeKey = this.sz <= 16 ? 14 : this.sz <= 24 ? 20 : this.sz <= 32 ? 28 : 36;
+    const img = tekuImages[sizeKey]; if(!img) return;
+    const drawSz = this.sz * (1+age*.5);
+    cx.save(); cx.globalAlpha=a;
+    cx.translate(px,py); cx.rotate(this.angle);
+    cx.drawImage(img, -drawSz/2, -drawSz/2, drawSz, drawSz);
+    cx.restore();
+  }
+}
+
+// --- Particle (tekuteku) ---
+class Particle {
+  constructor(){this.init(true);}
+  init(silent){
+    const isSp=Math.random()<.12;
+    const sp=isSp?spawnSpray():spawnPt();
+    this.x=sp.x;this.y=sp.y;this.typ=sp.typ;
+    this.vx=sp.tg.x*(1+Math.random())*(isSp?2:0.5)*.01;
+    this.vy=sp.tg.y*(1+Math.random())*(isSp?2:0.5)*.01;
+    this.life=0;
+    this.maxLife=isSp?(30+Math.random()*60):(120+Math.random()*400);
+    // Size: tekuteku size in pixels, varied for depth
+    const depth=this.y;
+    this.sz = isSp ? (8+Math.random()*10) : (10+Math.random()*18 + (1-depth)*6);
+    this.phase=Math.random()*Math.PI*2;
+    this.angle=Math.random()*Math.PI*2;
+    // Roll speed: proportional to velocity, direction-aware
+    this.rollSpeed = 0;
+    this.born=!silent;
+  }
+  update(dt){
+    const sp=parseFloat(document.getElementById('sp').value);
+    const fury=parseFloat(document.getElementById('fury').value);
+    const teku=parseFloat(document.getElementById('teku').value);
+    const [fx,fy]=flow(this.x,this.y,t*sp,fury);
+    const jl=emotion>0?emotion*Math.sin(t*sp+this.phase)*.3:0;
+    const sd=emotion<0?1+(-emotion)*.2:1;
+    const br=Math.sin(t*.06*sp)*.3+Math.sin(t*.023*sp)*.2;
+    const bf=br*(this.x<.5?1.5:.5);
+    this.vx+=(fx+bf*.3)*.0015*teku;
+    this.vy+=(fy+jl-bf*.5)*.0015*teku;
+    // 引き波時にダンピングが強まり、テクテクの動きが「溜まる」
+    const tideDamp = 0.93 - Math.max(0, -tideBreath) * 0.04;
+    this.vx*=tideDamp/sd;this.vy*=tideDamp/sd;
+    if(this.typ==='spray'){this.vy+=.0004*teku;this.vx*=.98;}
+    this.x+=this.vx*dt;this.y+=this.vy*dt;
+    this.life+=dt;
+    // Rolling: angle changes based on velocity, scaled by teku
+    const speed = Math.sqrt(this.vx*this.vx+this.vy*this.vy);
+    this.rollSpeed = speed * 80 * teku * (this.vx >= 0 ? 1 : -1);
+    this.angle += this.rollSpeed * dt;
+    if(this.life>this.maxLife||this.x<-.05||this.x>1.05||this.y<-.05||this.y>1.05){
+      ghosts.push(new Ghost(this.x,this.y,this.sz,this.angle,this.typ));
+      this.init(false);
+    }
+  }
+  draw(){
+    const age=this.life/this.maxLife;
+    let alpha;
+    if(age<.05) alpha=age/.05;
+    else if(age>.8){alpha=(1-age)/.2;alpha=Math.max(0,alpha+Math.sin(this.life*.3)*.15*(1-alpha));}
+    else alpha=1;
+    const breathe=.75+.25*Math.sin(this.life*.02+this.phase);
+    // 波の呼吸でテクテク全体が膨らんだり縮んだりする
+    const tideBreathScale = 1.0 + tideBreath * 0.08;
+    const a=Math.min(1,alpha*breathe*.9);
+    const px=this.x*W, py=this.y*H;
+    if(px<-50||px>W+50||py<-50||py>H+50) return;
+    // Choose image size based on particle size
+    const sizeKey = this.sz <= 16 ? 14 : this.sz <= 24 ? 20 : this.sz <= 32 ? 28 : 36;
+    const img = tekuImages[sizeKey]; if(!img) return;
+    let drawSz = this.sz;
+    if(this.typ==='spray') drawSz *= (1-age*.5);
+    else drawSz *= (.85+.3*Math.sin(age*Math.PI));
+    if(age<.05) drawSz*=(.5+age/.05*.5);
+    drawSz *= tideBreathScale;
+    drawSz = Math.max(1, drawSz);
+    cx.save();
+    cx.globalAlpha=a;
+    cx.translate(px,py);
+    cx.rotate(this.angle);
+    cx.drawImage(img, -drawSz/2, -drawSz/2, drawSz, drawSz);
+    cx.restore();
+    // Birth glow
+    if(this.born && age<.06){
+      const ba=(1-age/.06)*.12;
+      cx.strokeStyle=`rgba(230,235,225,${ba})`;
+      cx.lineWidth=.3;
+      cx.beginPath();cx.arc(px,py,Math.max(0,drawSz/2+3+age*40),0,Math.PI*2);cx.stroke();
+    }
+  }
+}
+
+function sz(){
+  W=Math.min(window.innerWidth-40,1020);
+  H=Math.min(W*.618,540);
+  cv.width=W*dpr;cv.height=H*dpr;
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  cx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+function rebirth(){
+  t=0;emotion=0;emotionTarget=0;
+  tidePhase=0;tideBreath=0;tideSurge=0;tideCrash=0;
+  parts=[];ghosts=[];
+  for(let i=0;i<800;i++) parts.push(new Particle());
+  cx.fillStyle='#0a0e14';cx.fillRect(0,0,W,H);
+}
+
+let lastEmo=0;
+function loop(){
+  const fd=parseFloat(document.getElementById('fd').value);
+  const sp=parseFloat(document.getElementById('sp').value);
+
+  // === 波の呼吸を更新 ===
+  updateTideBreath(0.016, sp);
+
+  // 背景色を呼吸と連動（押し寄せ時にわずかに明るく）
+  const tideGlow = Math.max(0, tideBreath) * 0.15;
+  const bgR=Math.round(10+(emotion>0?emotion*5:0) + tideGlow*20);
+  const bgG=Math.round(14+(emotion>0?emotion*3:emotion) + tideGlow*15);
+  const bgB=Math.round(20+(emotion<0?-emotion*8:0) + tideGlow*25);
+  cx.fillStyle=`rgba(${bgR},${bgG},${bgB},${1-fd})`;
+  cx.fillRect(0,0,W,H);
+  t+=.016;
+  // Fuji glow — 引き波の時に富士がより見える
+  const fcx=fuji.x*W, fcy=fuji.y*H, fh=H*.10;
+  const fujiBreathBonus = Math.max(0, -tideBreath) * 0.015;
+  const ga=.02+Math.sin(t*.05)*.01 + fujiBreathBonus;
+  cx.fillStyle=`rgba(215,195,160,${ga})`;
+  cx.beginPath();cx.arc(fcx,fcy,Math.max(0,fh*1.5),0,Math.PI*2);cx.fill();
+  // Emotion
+  const cycle=Math.sin(t*.035)*.35+Math.sin(t*.019)*.3+Math.sin(t*.067)*.2;
+  if(t-lastEmo>.5){emotionTarget=cycle*.7;emotionTarget=Math.max(-1,Math.min(1,emotionTarget));lastEmo=t;}
+  emotion+=(emotionTarget-emotion)*.008;
+  for(const p of parts) p.update(1);
+  // Sort by size (smaller = farther = draw first)
+  parts.sort((a,b)=>a.sz-b.sz);
+  for(const p of parts) p.draw();
+  ghosts=ghosts.filter(g=>{g.draw();return g.update();});
+  if(ghosts.length>150) ghosts=ghosts.slice(-150);
+  // Foam — 波が砕ける瞬間に泡が爆発的に増える
+  const fury=parseFloat(document.getElementById('fury').value);
+  const foamChance = .03 + fury*.03 + tideCrash * 0.15 + Math.max(0, tideBreath) * 0.05;
+  const foamBursts = tideCrash > 0.5 ? 3 : 1;
+  for (let fb = 0; fb < foamBursts; fb++) {
+    if(Math.random()<foamChance){
+      const ft=.3+Math.random()*.4,fp=bezier(wCr,ft);
+      const foamAlpha = .2+emotion*.2 + tideCrash * 0.3;
+      const foamSize = 1+Math.random()*2 + tideCrash * 2;
+      cx.fillStyle=`rgba(230,235,225,${Math.min(0.8,foamAlpha)})`;
+      cx.beginPath();cx.arc(fp.x*W+(Math.random()-.5)*15,fp.y*H+(Math.random()-.5)*10,Math.max(0.1,foamSize),0,Math.PI*2);cx.fill();
+    }
+  }
+  const en=emoNames.find(e=>emotion>=e[0]&&emotion<e[1]);
+  if(en){el.textContent=en[2];const h=emotion<0?215+emotion*15:215-emotion*180;el.style.color=`hsl(${h},25%,${Math.round(32+(emotion+1)*12)}%)`;}
+  requestAnimationFrame(loop);
+}
+
+function startArt(){sz();rebirth();loop();}
+window.addEventListener('resize',()=>{sz();rebirth();});
+</script>
+</body>
+</html>
