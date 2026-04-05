@@ -16,7 +16,7 @@
 
 私たちもまた、取るに足らないところから始めました。
 
-まずは、みてみましょうか。今度は呼吸もしてますよ。[GitHub Pages](https://eijwat.github.io/Code-Art_katsushika_tekuteku_wave/)
+まずは、みてみましょうか。今度は呼吸もしてますよ。[GitHub Pages](https://eijwat.github.io/Code-Art_katsushika_tekuteku_breath/)
 
 ---
 
